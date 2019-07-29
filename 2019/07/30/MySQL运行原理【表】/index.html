@@ -1,9 +1,14 @@
-<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.8.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="LeiJian"><title>MySQL运行原理【表】 · LeiJian</title><meta name="description" content="文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 两本书得到的总结本篇文章将介绍MySQL表的逻辑存储及实现，也就是数据在表中如果组织和存放的。
+<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.8.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="LeiJian"><title>MySQL运行原理【表】 · LeiJian</title><meta name="description" content="文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 两本书得到的总结
 
-表的概述表就是关于特定实体的数据集合，这也是关系数据库模型的核心。
-索引组织表"><meta name="keywords"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="/images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/blog_basic.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"></head><body><div class="sidebar animated fadeInDown"><div class="logo-title"><div class="title"><img src="/images/logo@2x.png" style="width:127px;"><h3 title><a href="/">LeiJian<p>PHP Engineer</p></a></h3></div></div><ul class="social-links"><li><a href="http://github.com/sayhe110"><i class="fa fa-github"></i></a></li></ul><div class="footer"><a target="_blank" href="/"><span>Theme by </span></a><a href="https://www.caicai.me"> CaiCai </a><span>&</span><a href="https://github.com/Ben02/hexo-theme-Anatole"> Ben</a><div class="by_farbox"><a href="https://hexo.io/zh-cn/" target="_blank">Proudly published with Hexo&#65281;</a></div></div></div><div class="main"><div class="page-top animated fadeInDown"><div class="nav"><li><a href="/">首页</a></li><li><a href="/about">关于我</a></li><li><a href="/archives">归档</a></li><li><a href="/links">链接</a></li><li><a href="/self-talking">碎碎念</a></li></div><div class="information"><div class="back_btn"><li><a class="fa fa-chevron-left" onclick="window.history.go(-1)"> </a></li></div><div class="avatar"><img src="/images/favicon.png"></div></div></div><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post animated fadeInDown"><div class="post-title"><h3><a>MySQL运行原理【表】</a></h3></div><div class="post-content"><blockquote>
-<p>文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、<a href="https://juejin.im/book/5bffcbc9f265da614b11b731" target="_blank" rel="noopener">掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》</a> 两本书得到的总结<br><b color="red">本篇文章将介绍MySQL表的逻辑存储及实现，也就是数据在表中如果组织和存放的。</b></p>
+ 文章图片均截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》
+
+本篇文章将介绍MySQL表的逻辑存储及实现，也就是数据在表中如果组织和存放的。
+"><meta name="keywords"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="/images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/blog_basic.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"></head><body><div class="sidebar animated fadeInDown"><div class="logo-title"><div class="title"><img src="/images/logo@2x.png" style="width:127px;"><h3 title><a href="/">LeiJian<p>PHP Engineer</p></a></h3></div></div><ul class="social-links"><li><a href="http://github.com/sayhe110"><i class="fa fa-github"></i></a></li></ul><div class="footer"><a target="_blank" href="/"><span>Theme by </span></a><a href="https://www.caicai.me"> CaiCai </a><span>&</span><a href="https://github.com/Ben02/hexo-theme-Anatole"> Ben</a><div class="by_farbox"><a href="https://hexo.io/zh-cn/" target="_blank">Proudly published with Hexo&#65281;</a></div></div></div><div class="main"><div class="page-top animated fadeInDown"><div class="nav"><li><a href="/">首页</a></li><li><a href="/about">关于我</a></li><li><a href="/archives">归档</a></li><li><a href="/links">链接</a></li><li><a href="/self-talking">碎碎念</a></li></div><div class="information"><div class="back_btn"><li><a class="fa fa-chevron-left" onclick="window.history.go(-1)"> </a></li></div><div class="avatar"><img src="/images/favicon.png"></div></div></div><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post animated fadeInDown"><div class="post-title"><h3><a>MySQL运行原理【表】</a></h3></div><div class="post-content"><blockquote>
+<p>文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、<a href="https://juejin.im/book/5bffcbc9f265da614b11b731" target="_blank" rel="noopener">掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》</a> 两本书得到的总结</p>
 </blockquote>
+<div class="tip"> 文章图片均截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》</div>
+
+<p><b color="red">本篇文章将介绍MySQL表的逻辑存储及实现，也就是数据在表中如果组织和存放的。</b></p>
 <h4 id="表的概述"><a href="#表的概述" class="headerlink" title="表的概述"></a>表的概述</h4><p>表就是关于特定实体的数据集合，这也是关系数据库模型的核心。</p>
 <h4 id="索引组织表"><a href="#索引组织表" class="headerlink" title="索引组织表"></a>索引组织表</h4><p>在innodb存储引擎中，表都是根据主键顺序组织存放的，这种存储方式的表称为索引组织表。</p>
 <p>每张表都有主键，若没有则会按如下方式选择或创建主键：</p>
@@ -12,7 +17,9 @@
 <li>如果不符合上述条件，innodb存储引擎自动创建一个6字节的指针</li>
 <li>当表中有多个非空唯一索引时，innodb存储引擎将选择建表时第一个定义的非空唯一索引为主键</li>
 </ul>
-<h4 id="InnoDB存储逻辑结构"><a href="#InnoDB存储逻辑结构" class="headerlink" title="InnoDB存储逻辑结构"></a>InnoDB存储逻辑结构</h4><p>所有数据都逻辑地存放在一个空间内，这个空间就是我们所说的表空间，表空间可以看做成InnoDB存储引擎逻辑结构的最高层，结构图如下（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）<br><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG123.png" alt></p>
+<h4 id="InnoDB存储逻辑结构"><a href="#InnoDB存储逻辑结构" class="headerlink" title="InnoDB存储逻辑结构"></a>InnoDB存储逻辑结构</h4><p>所有数据都逻辑地存放在一个空间内，这个空间就是我们所说的表空间，表空间可以看做成InnoDB存储引擎逻辑结构的最高层，结构图如下（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）</p>
+<div align="center"><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG123.png" width="50%"></div>
+
 <p>从结构图中，可以看到表空间由段、区、页、行四大部分组成</p>
 <ul>
 <li>段：表空间由各个段组成，常见的段有数据段、索引段、回滚段等</li>
@@ -27,7 +34,9 @@
 可以通过以下命令来修改行记录格式</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">CREATE TABLE 表名 (列的信息) ROW_FORMAT=行格式名称</span><br><span class="line">    </span><br><span class="line">ALTER TABLE 表名 ROW_FORMAT=行格式名称</span><br></pre></td></tr></table></figure>
 
-<p><code>Compact</code>行记录格式的结构图（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）如下：<br><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG125.png" alt></p>
+<p><code>Compact</code>行记录格式的结构图（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）如下：</p>
+<div align="center"><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG125.png" width="50%"></div>
+
 <ul>
 <li>变长字段长度列表：Compact行记录格式的首部是一个非NULL变长字段长度列表，逆序放置<ul>
 <li>把所有变长字段的真实数据占用的字节长度都存放至变长字段长度列表中</li>
@@ -35,7 +44,10 @@
 </ul>
 </li>
 <li>NULL 标志位：指示该行数据中是否有NULL值，有则1表示</li>
-<li>记录头信息：固定占5个字节，也就是40个二进制位，不同位代表不同意思，如图（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）：<br><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG126.png" alt></li>
+<li>记录头信息：固定占5个字节，也就是40个二进制位，不同位代表不同意思，如图（）：</li>
+</ul>
+<p><br> <div align="center"><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG126.png" width="80%"></div></p>
+<ul>
 <li>Redundant行记录格式：MySQL5.1版本之前的行记录格式</li>
 <li>行溢出数据【下面会详细介绍】</li>
 <li>Compressed和Dynamic行记录格式<ul>
