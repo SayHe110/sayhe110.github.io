@@ -1,0 +1,47 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.8.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="LeiJian"><title>MySQL运行原理【表】 · LeiJian</title><meta name="description" content="文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 两本书得到的总结本篇文章将介绍MySQL表的逻辑存储及实现，也就是数据在表中如果组织和存放的。
+
+表的概述表就是关于特定实体的数据集合，这也是关系数据库模型的核心。
+索引组织表"><meta name="keywords"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="/images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/blog_basic.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"></head><body><div class="sidebar animated fadeInDown"><div class="logo-title"><div class="title"><img src="/images/logo@2x.png" style="width:127px;"><h3 title><a href="/">LeiJian<p>PHP Engineer</p></a></h3></div></div><ul class="social-links"><li><a href="http://github.com/sayhe110"><i class="fa fa-github"></i></a></li></ul><div class="footer"><a target="_blank" href="/"><span>Theme by </span></a><a href="https://www.caicai.me"> CaiCai </a><span>&</span><a href="https://github.com/Ben02/hexo-theme-Anatole"> Ben</a><div class="by_farbox"><a href="https://hexo.io/zh-cn/" target="_blank">Proudly published with Hexo&#65281;</a></div></div></div><div class="main"><div class="page-top animated fadeInDown"><div class="nav"><li><a href="/">首页</a></li><li><a href="/about">关于我</a></li><li><a href="/archives">归档</a></li><li><a href="/links">链接</a></li><li><a href="/self-talking">碎碎念</a></li></div><div class="information"><div class="back_btn"><li><a class="fa fa-chevron-left" onclick="window.history.go(-1)"> </a></li></div><div class="avatar"><img src="/images/favicon.png"></div></div></div><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post animated fadeInDown"><div class="post-title"><h3><a>MySQL运行原理【表】</a></h3></div><div class="post-content"><blockquote>
+<p>文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、<a href="https://juejin.im/book/5bffcbc9f265da614b11b731" target="_blank" rel="noopener">掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》</a> 两本书得到的总结<br><b color="red">本篇文章将介绍MySQL表的逻辑存储及实现，也就是数据在表中如果组织和存放的。</b></p>
+</blockquote>
+<h4 id="表的概述"><a href="#表的概述" class="headerlink" title="表的概述"></a>表的概述</h4><p>表就是关于特定实体的数据集合，这也是关系数据库模型的核心。</p>
+<h4 id="索引组织表"><a href="#索引组织表" class="headerlink" title="索引组织表"></a>索引组织表</h4><p>在innodb存储引擎中，表都是根据主键顺序组织存放的，这种存储方式的表称为索引组织表。</p>
+<p>每张表都有主键，若没有则会按如下方式选择或创建主键：</p>
+<ul>
+<li>首先判断表中是否有非空的唯一索引（unique not null）如果有，则该列即为主键</li>
+<li>如果不符合上述条件，innodb存储引擎自动创建一个6字节的指针</li>
+<li>当表中有多个非空唯一索引时，innodb存储引擎将选择建表时第一个定义的非空唯一索引为主键</li>
+</ul>
+<h4 id="InnoDB存储逻辑结构"><a href="#InnoDB存储逻辑结构" class="headerlink" title="InnoDB存储逻辑结构"></a>InnoDB存储逻辑结构</h4><p>所有数据都逻辑地存放在一个空间内，这个空间就是我们所说的表空间，表空间可以看做成InnoDB存储引擎逻辑结构的最高层，结构图如下（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）<br><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG123.png" alt></p>
+<p>从结构图中，可以看到表空间由段、区、页、行四大部分组成</p>
+<ul>
+<li>段：表空间由各个段组成，常见的段有数据段、索引段、回滚段等</li>
+<li>区：段由各个区组成，区由连续页组成，在任何情况下区的大小都为 1MB<ul>
+<li>为了保证区中页的连续性，InnoDB存储引擎一次从磁盘申请 4~5个区，默认情况下InnoDB存储引擎页的大小为16KB，即一个区中一个有64个连续的页</li>
+</ul>
+</li>
+<li>页：InnoDB存储引擎磁盘管理最小单位【下面会有详细的页结构介绍】，常见的页类型有：数据页、undo页、系统页、事务数据页、插入缓冲位图页、插入缓冲空闲页、未压缩的二进制大对象页、压缩的二进制大对象页</li>
+<li>行：InnoDB存储引擎是面向列的，也就是说数据是按行进行存放的</li>
+</ul>
+<h4 id="InnoDB行记录格式"><a href="#InnoDB行记录格式" class="headerlink" title="InnoDB行记录格式"></a>InnoDB行记录格式</h4><p>我们正常都是以行为单位向表中插入数据，这些数据在磁盘上存放的格式被称为 <code>行格式</code> 或者 <code>记录格式</code> ，行记录格式有多种如： <code>Compact</code>，<code>Redundant</code>，<code>Dynamic</code>，<code>Compressed</code>，MySQL5.1开始默认行格式为 <code>Compact</code>。
+可以通过以下命令来修改行记录格式</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">CREATE TABLE 表名 (列的信息) ROW_FORMAT=行格式名称</span><br><span class="line">    </span><br><span class="line">ALTER TABLE 表名 ROW_FORMAT=行格式名称</span><br></pre></td></tr></table></figure>
+
+<p><code>Compact</code>行记录格式的结构图（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）如下：<br><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG125.png" alt></p>
+<ul>
+<li>变长字段长度列表：Compact行记录格式的首部是一个非NULL变长字段长度列表，逆序放置<ul>
+<li>把所有变长字段的真实数据占用的字节长度都存放至变长字段长度列表中</li>
+<li>若列长度小于255字节，用1字节表示，若大于255字节则用2字节表示</li>
+</ul>
+</li>
+<li>NULL 标志位：指示该行数据中是否有NULL值，有则1表示</li>
+<li>记录头信息：固定占5个字节，也就是40个二进制位，不同位代表不同意思，如图（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）：<br><img src="//blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/WechatIMG126.png" alt></li>
+<li>Redundant行记录格式：MySQL5.1版本之前的行记录格式</li>
+<li>行溢出数据【下面会详细介绍】</li>
+<li>Compressed和Dynamic行记录格式<ul>
+<li>Dynamic行记录格式与Compact行记录格式相似，区别在于处理行溢出数据时不同</li>
+<li>Compressed行记录格式与Dynamic行记录格式不同的是，Compressed行格式会采用压缩算法对页面进行压缩，以节省空间</li>
+</ul>
+</li>
+</ul>
+<h4 id="行溢出数据【TODO】"><a href="#行溢出数据【TODO】" class="headerlink" title="行溢出数据【TODO】"></a>行溢出数据【TODO】</h4><h4 id="InnoDB数据页结构【TODO】"><a href="#InnoDB数据页结构【TODO】" class="headerlink" title="InnoDB数据页结构【TODO】"></a>InnoDB数据页结构【TODO】</h4></div><div class="post-footer"><div class="meta"><div class="info"><i class="fa fa-sun-o"></i><span class="date">2019-07-30</span><i class="fa fa-tag"></i></div></div></div></div><div class="share"><div class="evernote"><a class="fa fa-bookmark" href="javascript:(function(){EN_CLIP_HOST='http://www.evernote.com';try{var%20x=document.createElement('SCRIPT');x.type='text/javascript';x.src=EN_CLIP_HOST+'/public/bookmarkClipper.js?'+(new%20Date().getTime()/100000);document.getElementsByTagName('head')[0].appendChild(x);}catch(e){location.href=EN_CLIP_HOST+'/clip.action?url='+encodeURIComponent(location.href)+'&amp;title='+encodeURIComponent(document.title);}})();" ref="nofollow" target="_blank"></a></div><div class="weibo"><a class="fa fa-weibo" href="javascript:void((function(s,d,e){try{}catch(e){}var f='http://service.weibo.com/share/share.php?',u=d.location.href,p=['url=',e(u),'&amp;title=',e(d.title),'&amp;appkey=2924220432'].join('');function a(){if(!window.open([f,p].join(''),'mb',['toolbar=0,status=0,resizable=1,width=620,height=450,left=',(s.width-620)/2,',top=',(s.height-450)/2].join('')))u.href=[f,p].join('');};if(/Firefox/.test(navigator.userAgent)){setTimeout(a,0)}else{a()}})(screen,document,encodeURIComponent));"></a></div><div class="twitter"><a class="fa fa-twitter" href="http://twitter.com/home?status=,http://blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/,LeiJian,MySQL运行原理【表】,;"></a></div></div><div class="pagination"><ul class="clearfix"><li class="next pagbuttons"><a class="btn" role="navigation" href="/2019/06/21/众多编程语言应如何选择/" title="众多编程语言应如何选择">下一篇</a></li></ul></div></div></div></div></div><script src="/js/jquery.js"></script><script src="/js/jquery-migrate-1.2.1.min.js"></script><script src="/js/jquery.appear.js"></script></body></html>
