@@ -27,7 +27,7 @@
 <li>为了保证区中页的连续性，InnoDB存储引擎一次从磁盘申请 4~5个区，默认情况下InnoDB存储引擎页的大小为16KB，即一个区中一个有64个连续的页</li>
 </ul>
 </li>
-<li>页：InnoDB存储引擎磁盘管理最小单位【下面会有详细的页结构介绍】，常见的页类型有：数据页、undo页、系统页、事务数据页、插入缓冲位图页、插入缓冲空闲页、未压缩的二进制大对象页、压缩的二进制大对象页</li>
+<li>页：InnoDB存储引擎磁盘管理最小单位【<font color="red">会单独写篇文章来详细介绍数据页</font>】，常见的页类型有：数据页、undo页、系统页、事务数据页、插入缓冲位图页、插入缓冲空闲页、未压缩的二进制大对象页、压缩的二进制大对象页</li>
 <li>行：InnoDB存储引擎是面向列的，也就是说数据是按行进行存放的</li>
 </ul>
 <h4 id="InnoDB行记录格式"><a href="#InnoDB行记录格式" class="headerlink" title="InnoDB行记录格式"></a>InnoDB行记录格式</h4><p>我们正常都是以行为单位向表中插入数据，这些数据在磁盘上存放的格式被称为 <code>行格式</code> 或者 <code>记录格式</code> ，行记录格式有多种如： <code>Compact</code>，<code>Redundant</code>，<code>Dynamic</code>，<code>Compressed</code>，MySQL5.1开始默认行格式为 <code>Compact</code>。
@@ -56,4 +56,23 @@
 </ul>
 </li>
 </ul>
-<h4 id="行溢出数据【TODO】"><a href="#行溢出数据【TODO】" class="headerlink" title="行溢出数据【TODO】"></a>行溢出数据【TODO】</h4><h4 id="InnoDB数据页结构【TODO】"><a href="#InnoDB数据页结构【TODO】" class="headerlink" title="InnoDB数据页结构【TODO】"></a>InnoDB数据页结构【TODO】</h4></div><div class="post-footer"><div class="meta"><div class="info"><i class="fa fa-sun-o"></i><span class="date">2019-07-30</span><i class="fa fa-tag"></i></div></div></div></div><div class="share"><div class="evernote"><a class="fa fa-bookmark" href="javascript:(function(){EN_CLIP_HOST='http://www.evernote.com';try{var%20x=document.createElement('SCRIPT');x.type='text/javascript';x.src=EN_CLIP_HOST+'/public/bookmarkClipper.js?'+(new%20Date().getTime()/100000);document.getElementsByTagName('head')[0].appendChild(x);}catch(e){location.href=EN_CLIP_HOST+'/clip.action?url='+encodeURIComponent(location.href)+'&amp;title='+encodeURIComponent(document.title);}})();" ref="nofollow" target="_blank"></a></div><div class="weibo"><a class="fa fa-weibo" href="javascript:void((function(s,d,e){try{}catch(e){}var f='http://service.weibo.com/share/share.php?',u=d.location.href,p=['url=',e(u),'&amp;title=',e(d.title),'&amp;appkey=2924220432'].join('');function a(){if(!window.open([f,p].join(''),'mb',['toolbar=0,status=0,resizable=1,width=620,height=450,left=',(s.width-620)/2,',top=',(s.height-450)/2].join('')))u.href=[f,p].join('');};if(/Firefox/.test(navigator.userAgent)){setTimeout(a,0)}else{a()}})(screen,document,encodeURIComponent));"></a></div><div class="twitter"><a class="fa fa-twitter" href="http://twitter.com/home?status=,http://blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/,LeiJian,MySQL运行原理【表】,;"></a></div></div><div class="pagination"><ul class="clearfix"><li class="next pagbuttons"><a class="btn" role="navigation" href="/2019/06/21/众多编程语言应如何选择/" title="众多编程语言应如何选择">下一篇</a></li></ul></div></div></div></div></div><script src="/js/jquery.js"></script><script src="/js/jquery-migrate-1.2.1.min.js"></script><script src="/js/jquery.appear.js"></script></body></html>
+<h4 id="行溢出数据"><a href="#行溢出数据" class="headerlink" title="行溢出数据"></a>行溢出数据</h4><p>InnoDB存储引擎可以将一条记录中的某些数据存储在真正的数据页面之外，一般认为只有BLOB，LOB这种大对象数据类型的存储会把数据存放在页面之外，但是这种理解是有一点偏差的，<br>BLOB也可以不将数据存放在页面之外，而且即便是VARCHAR类型，依然有可能存放为行溢出数据。</p>
+<h5 id="记录中数据太多产生的溢出"><a href="#记录中数据太多产生的溢出" class="headerlink" title="记录中数据太多产生的溢出"></a>记录中数据太多产生的溢出</h5><p>不止是BLOB、LOB这种大对象数据太多会产生溢出，VARCHAR类型同样会产生溢出。</p>
+<h5 id="行溢出的临界点"><a href="#行溢出的临界点" class="headerlink" title="行溢出的临界点"></a>行溢出的临界点</h5><p>在列存储多少个字节的数据时会发生行溢出呢？<br>MySQL规定一个数据页至少存放<font color="red">两条</font>数据记录，我们可以先分析下页中的空间是如何利用的</p>
+<ul>
+<li>每个页除了存放我们数据记录之外还需要存放其他信息，比如 <code>File Header</code>，<code>Page Header</code> 等等，共需要 <code>132</code> 个字节空间，其他空间都可以被存放数据记录</li>
+<li>每个记录需要额外的 <code>27</code> 个字节信息，<code>27</code>个字节信息包括<ul>
+<li>2个字节用于存储真实数据的长度</li>
+<li>1个字节用于存储列是否是NULL值</li>
+<li>5个字节大小的头信息</li>
+<li>6个字节的row_id列</li>
+<li>6个字节的transaction_id列</li>
+<li>7个字节的roll_pointer列</li>
+</ul>
+</li>
+</ul>
+<p>假设一个列中存储的数据字节数为n，设计MySQL的大叔规定如果该列不发生溢出的现象，就需要满足下边这个式子：</p>
+<figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">132 + 2×(27 + n) &lt; 16384</span><br></pre></td></tr></table></figure>
+
+<p>得到 n 为8099，也就是说这个列可以存放8099字节信息，若大于则为溢出，这只是一个列的情况下，若多列的时候，这个数值就不能作为参考，所以最终的结论是：<span color="red">你不用关注这个临界点是什么，只要知道如果我们一条记录的某个列中存储的数据占用的字节数非常多时，该列就可能成为溢出列</span>。</p>
+</div><div class="post-footer"><div class="meta"><div class="info"><i class="fa fa-sun-o"></i><span class="date">2019-07-30</span><i class="fa fa-tag"></i></div></div></div></div><div class="share"><div class="evernote"><a class="fa fa-bookmark" href="javascript:(function(){EN_CLIP_HOST='http://www.evernote.com';try{var%20x=document.createElement('SCRIPT');x.type='text/javascript';x.src=EN_CLIP_HOST+'/public/bookmarkClipper.js?'+(new%20Date().getTime()/100000);document.getElementsByTagName('head')[0].appendChild(x);}catch(e){location.href=EN_CLIP_HOST+'/clip.action?url='+encodeURIComponent(location.href)+'&amp;title='+encodeURIComponent(document.title);}})();" ref="nofollow" target="_blank"></a></div><div class="weibo"><a class="fa fa-weibo" href="javascript:void((function(s,d,e){try{}catch(e){}var f='http://service.weibo.com/share/share.php?',u=d.location.href,p=['url=',e(u),'&amp;title=',e(d.title),'&amp;appkey=2924220432'].join('');function a(){if(!window.open([f,p].join(''),'mb',['toolbar=0,status=0,resizable=1,width=620,height=450,left=',(s.width-620)/2,',top=',(s.height-450)/2].join('')))u.href=[f,p].join('');};if(/Firefox/.test(navigator.userAgent)){setTimeout(a,0)}else{a()}})(screen,document,encodeURIComponent));"></a></div><div class="twitter"><a class="fa fa-twitter" href="http://twitter.com/home?status=,http://blog.sayhe110.cn/2019/07/30/MySQL运行原理【表】/,LeiJian,MySQL运行原理【表】,;"></a></div></div><div class="pagination"><ul class="clearfix"><li class="next pagbuttons"><a class="btn" role="navigation" href="/2019/06/21/众多编程语言应如何选择/" title="众多编程语言应如何选择">Próximo post</a></li></ul></div></div></div></div></div><script src="/js/jquery.js"></script><script src="/js/jquery-migrate-1.2.1.min.js"></script><script src="/js/jquery.appear.js"></script></body></html>
