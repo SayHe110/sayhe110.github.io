@@ -1,25 +1,25 @@
 <!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.8.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="LeiJian"><title>MySQL运行原理【事务】 · LeiJian</title><meta name="description" content="文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 两本书得到的总结
 
- 文章图片均截图自 掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 
+事务概述在现实生活中，大家都有过以下经历（也是事务的经典场景之一）：
 
-事务概述在现实生活中，大家都有过以下经历（以下场景也是事务的经典场景）："><meta name="keywords"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="/images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/blog_basic.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"></head><body><div class="sidebar animated fadeInDown"><div class="logo-title"><div class="title"><img src="/images/logo@2x.png" style="width:127px;"><h3 title><a href="/">LeiJian<p>PHP Engineer</p></a></h3></div></div><ul class="social-links"><li><a href="http://github.com/sayhe110"><i class="fa fa-github"></i></a></li></ul><div class="footer"><a target="_blank" href="/"><span>Theme by </span></a><a href="https://www.caicai.me"> CaiCai </a><span>&</span><a href="https://github.com/Ben02/hexo-theme-Anatole"> Ben</a><div class="by_farbox"><a href="https://hexo.io/zh-cn/" target="_blank">Proudly published with Hexo&#65281;</a></div></div></div><div class="main"><div class="page-top animated fadeInDown"><div class="nav"><li><a href="/">首页</a></li><li><a href="/about">关于我</a></li><li><a href="/archives">归档</a></li><li><a href="/links">链接</a></li><li><a href="/self-talking">碎碎念</a></li></div><div class="information"><div class="back_btn"><li><a class="fa fa-chevron-left" onclick="window.history.go(-1)"> </a></li></div><div class="avatar"><img src="/images/favicon.png"></div></div></div><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post animated fadeInDown"><div class="post-title"><h3><a>MySQL运行原理【事务】</a></h3></div><div class="post-content"><blockquote>
+最近没钱了，需要去银行取些钱用，然后就去ATM机取钱
+在ATM机取 100 块钱
+银"><meta name="keywords"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="/images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/blog_basic.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"></head><body><div class="sidebar animated fadeInDown"><div class="logo-title"><div class="title"><img src="/images/logo@2x.png" style="width:127px;"><h3 title><a href="/">LeiJian<p>PHP Engineer</p></a></h3></div></div><ul class="social-links"><li><a href="http://github.com/sayhe110"><i class="fa fa-github"></i></a></li></ul><div class="footer"><a target="_blank" href="/"><span>Theme by </span></a><a href="https://www.caicai.me"> CaiCai </a><span>&</span><a href="https://github.com/Ben02/hexo-theme-Anatole"> Ben</a><div class="by_farbox"><a href="https://hexo.io/zh-cn/" target="_blank">Proudly published with Hexo&#65281;</a></div></div></div><div class="main"><div class="page-top animated fadeInDown"><div class="nav"><li><a href="/">首页</a></li><li><a href="/about">关于我</a></li><li><a href="/archives">归档</a></li><li><a href="/links">链接</a></li><li><a href="/self-talking">碎碎念</a></li></div><div class="information"><div class="back_btn"><li><a class="fa fa-chevron-left" onclick="window.history.go(-1)"> </a></li></div><div class="avatar"><img src="/images/favicon.png"></div></div></div><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post animated fadeInDown"><div class="post-title"><h3><a>MySQL运行原理【事务】</a></h3></div><div class="post-content"><blockquote>
 <p>文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、<a href="https://juejin.im/book/5bffcbc9f265da614b11b731" target="_blank" rel="noopener">掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》</a> 两本书得到的总结</p>
 </blockquote>
-<div class="tip"> 文章图片均截图自 掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 </div>
-
-<h3 id="事务概述"><a href="#事务概述" class="headerlink" title="事务概述"></a>事务概述</h3><p>在现实生活中，大家都有过以下经历（以下场景也是事务的经典场景）：</p>
+<h3 id="事务概述"><a href="#事务概述" class="headerlink" title="事务概述"></a>事务概述</h3><p>在现实生活中，大家都有过以下经历（也是事务的经典场景之一）：</p>
 <ol>
-<li>最近没钱了，需要取些钱用，然后就去ATM机取钱</li>
+<li>最近没钱了，需要去银行取些钱用，然后就去ATM机取钱</li>
 <li>在ATM机取 100 块钱</li>
 <li>银行程序会在将银行账户相应的减少 100 块钱</li>
 <li>最终取到钱</li>
 </ol>
-<p>以上步骤是在理想的情况下进行的，假如在第二步骤时ATM机突然断电/坏了呢，钱没拿到，而账户里却少了 100 块，是不是特别冤枉，再或者，假如在第三步骤的时候，银行服务器突然宕机了，用户拿到了钱，而账户缺没有相应的减少，银行会相应的亏损 100 块。</p>
+<p>以上步骤是在理想的情况下进行的，假如在第二步骤时ATM机突然断电/坏了呢，钱没拿到，而账户里却少了 100 块，是不是特别冤枉，再或者，假如在第三步骤的时候，银行服务器突然宕机了，用户拿到了钱，而账户资金却没有相应的减少，银行会相应的亏损 100 块。</p>
 <p>在这样的情况下双方资金都得不到保障，这样对双方都是不利的。</p>
-<p>事务的出现就是为了保证以上情景会正常运作，事务会把数据库的一种一致状态转换为另外一种一致状态，在数据库提交工作时，可以确保要么所有修改都保存，要么所以修改都不会保存，在上述场景中，假如ATM机断电了或者银行服务器宕机了，不论发生什么异常场景事务都会直接回滚，不会将所做的修改提交</p>
-<h4 id="ACID性质"><a href="#ACID性质" class="headerlink" title="ACID性质"></a>ACID性质</h4><p>其实我们只是想让数据库操作完全符合我们正常逻辑的状态转换而已，InnoDB存储引擎中的事务完全符合ACID的特性</p>
+<p>事务的出现就是为了保证以上情景会正常运作，事务会把数据库的一种一致状态转换为另外一种一致状态，在数据库提交工作时，可以确保要么所有修改都保存，要么所以修改都不会保存，在上述场景中，假如ATM机突然断电了或者银行服务器宕机了，不论发生什么异常场景事务都会直接回滚，不会将所做的修改提交</p>
+<h4 id="ACID性质"><a href="#ACID性质" class="headerlink" title="ACID性质"></a>ACID性质</h4><p>其实我们只是想让数据库操作完全符合我们正常逻辑的状态转换而已，在InnoDB存储引擎中的事务也完全符合ACID的特性。</p>
 <h6 id="原子性（Atomicity）"><a href="#原子性（Atomicity）" class="headerlink" title="原子性（Atomicity）"></a>原子性（Atomicity）</h6><p>众所周知原子是现实中物理最小的单位，不可再分割，在数据库中，原子性指的是整个数据库事务是不可分割单位，只有事务执行成功才算整个事务执行成功，若其中任何一条sql语句执行失败则整个事务都执行失败，执行成功的sql也将撤回，数据库状态应该退回事务开始之前的状态。</p>
-<h6 id="一致性（Consistency）"><a href="#一致性（Consistency）" class="headerlink" title="一致性（Consistency）"></a>一致性（Consistency）</h6><p>现实生活中有着许许多多的约束，比如我们的身份证号码不能重复，性别只有男女（正常来说），红绿灯只有三种颜色等等，那么在数据库中同样存在着约束，比如比一张表中有一列的索引为唯一索引（unique index）那么这一列不能有重复行数据，当然更多的一致性需求还是需要靠写业务代码的人来保证该一致性。</p>
+<h6 id="一致性（Consistency）"><a href="#一致性（Consistency）" class="headerlink" title="一致性（Consistency）"></a>一致性（Consistency）</h6><p>现实生活中有着许许多多的约束，比如我们的身份证号码不能重复，性别只有男女（正常来说），红绿灯只有三种颜色等等，那么在数据库中同样存在着约束，比如比一张表中有一列的索引为唯一索引（unique index）那么这一列不能有重复行数据，当然更多的一致性需求还是需要靠写业务代码的人来保证该一致性。最终一致性保证的是关注数据的可见性，中间状态的数据对外不可见，只有最初状态和最终状态的数据对外可见的。</p>
 <h6 id="隔离性（Isolation）"><a href="#隔离性（Isolation）" class="headerlink" title="隔离性（Isolation）"></a>隔离性（Isolation）</h6><p>隔离性还有另外一个称呼“并发控制、可串行化、锁等等”现实世界中的两次状态转化应该是互不影响的，还是取钱场景举例，假如同时在两台ATM机取钱，只扣了一台ATM所取出的钱，这样是不合理的对吧，所以事务的隔离性要求每个读写事务的对象对其他事务操作的对象能相互独立分离，即事务提交前对其他事务不可见，通常用锁来实现。</p>
 <h6 id="永久性（Durability）"><a href="#永久性（Durability）" class="headerlink" title="永久性（Durability）"></a>永久性（Durability）</h6><p>事务一旦提交了就不能反悔了，因为一旦事务提交那么结果就是永久性的，即使数据库发生宕机，数据也能恢复。</p>
 <h3 id="事务分类"><a href="#事务分类" class="headerlink" title="事务分类"></a>事务分类</h3><ul>
@@ -38,17 +38,34 @@
 <li>分布式事务：通常是一个在分布式环境下运行的扁平事务，因此需要根据数据所在的位置访问网络中的不同节点</li>
 </ul>
 <h4 id="事务实现"><a href="#事务实现" class="headerlink" title="事务实现"></a>事务实现</h4><p>原子性、一致性、持久性通过数据库的 <code>redo log</code> 和 <code>undo log</code> 来完成，<code>redo log</code> 称作为重做日志，用来保证事务的原子性和持久性， <code>undo log</code> 用来保证事务的一致性。有些人可能会认为 <code>undo log</code> 是 <code>redo log</code> 的逆过程，其实不然，<code>redo</code> 和 <code>undo</code> 的作用都可以视为是一种恢复操作，<code>redo</code> 恢复提交事务修改的页操作，而undo回滚记录到某个特定的版本，因此两者记录的内容不同，<code>redo</code> 通常是物理日志，记录的是页的物理修改操作，<code>undo</code> 是逻辑日志，根据每行记录进行记录。</p>
-<h5 id="redo-log-TODO-详细介绍"><a href="#redo-log-TODO-详细介绍" class="headerlink" title="redo log TODO 详细介绍"></a>redo log <font color="red">TODO 详细介绍</font></h5><p>上面也提到了 redo log 就是为了事务的持久性（D），在事务提交完成之前把该事务所修改的所有页面都刷新到磁盘</p>
-<p>redo log 用来实现事务的持久性，即事务ACID中的D，redo log 由两部分组成：</p>
+<h4 id="redo-log"><a href="#redo-log" class="headerlink" title="redo log"></a>redo log</h4><p>上面也提到了 <code>redo log</code> 就是为了事务的持久性（D），在事务提交后会将修改内容刷新至磁盘中，即使数据库宕机，在重启后会 <code>redo log</code> 记录的修改内容刷新至磁盘中去。</p>
+<p>使用 <code>redo log</code> 的好处：</p>
+<ul>
+<li><code>redo log</code> 占用空间小</li>
+<li><code>redo log</code> 顺序写入磁盘：在执行事务过程中，没执行一条 sql 语句就会产生若干条 <code>redo log</code> ，这些日志按照产生顺序写入磁盘的，也就是使用顺序IO</li>
+</ul>
+<p><font size="3"><strong>log block</strong></font><br>InnoDB存储引擎中，重做日志都是以512字节进行存储的，重做日志缓存、重做日志文件都是以块（block）的方式进行保存的，称之为重做日志块（redo log block），每块大小为512字节</p>
+<p><font size="3"><strong>redo log 格式</strong></font><br>由于InnoDB存储引擎的存储管理是基于页的，故其重做日志格式也是基于页的，其头部格式由三部分组成为：</p>
 <ol>
-<li>内存中的重做日志缓冲（redo log file）</li>
-<li>重做日志文件（redo log file）</li>
+<li>redo_log_type：重做日志的类型</li>
+<li>space：表空间的ID</li>
+<li>page_no：页的偏移量</li>
 </ol>
-<h5 id="undo-log-TODO-详细介绍"><a href="#undo-log-TODO-详细介绍" class="headerlink" title="undo log TODO 详细介绍"></a>undo log <font color="red">TODO 详细介绍</font></h5><p>redo 存放在重做日志文件中，与 redo 不同的是，undo 存放在数据库内部的一个特殊段中，这个段称为 undo 段，重做日志记录了事务的行为，可以很好的通过其对页进行“重做”操作，但是事务有时还是需要进行回滚操作，那么这时就需要 undo ，除了回滚操作，undo 的另外一个作用是 MVCC（多版本并发控制），即InnoDB存储引擎的MVCC的实现是由 undo 来完成的。</p>
-<h6 id="undo存储管理"><a href="#undo存储管理" class="headerlink" title="undo存储管理"></a>undo存储管理</h6><p>InnoDB存储引擎有 rollback segment，每个回滚段种记录了 1024 个 undo log segment，而在每个 undo log segment 段种进行 undo 页的申请。</p>
-<h6 id="undo-log-格式"><a href="#undo-log-格式" class="headerlink" title="undo log 格式"></a>undo log 格式</h6><ul>
+<h4 id="undo-log"><a href="#undo-log" class="headerlink" title="undo log"></a>undo log</h4><p>redo 存放在重做日志文件中，与 redo 不同的是，undo 存放在数据库内部的一个特殊段中，这个段称为 undo 段，重做日志记录了事务的行为，可以很好的通过其对页进行“重做”操作，但是事务有时还是需要进行回滚操作，那么这时就需要 undo ，除了回滚操作，undo 的另外一个作用是 MVCC（多版本并发控制），即InnoDB存储引擎的MVCC的实现是由 undo 来完成的。</p>
+<h5 id="undo存储管理"><a href="#undo存储管理" class="headerlink" title="undo存储管理"></a>undo存储管理</h5><p>InnoDB存储引擎有 rollback segment，每个回滚段种记录了 1024 个 undo log segment，而在每个 undo log segment 段种进行 undo 页的申请。</p>
+<h5 id="undo-log-格式"><a href="#undo-log-格式" class="headerlink" title="undo log 格式"></a>undo log 格式</h5><ul>
 <li>insert undo log：insert 操作产生的undo log ，在事务提交后就删除</li>
 <li>update undo log：delete 和 update 操作产生的 undo log，该undo log 可能需要提供MVCC机制，因此不能在事务提交时就删除</li>
+</ul>
+<h4 id="purge"><a href="#purge" class="headerlink" title="purge"></a>purge</h4><ul>
+<li>purge 用于最终完成 update 和 delete 操作，来支持 MVCC</li>
+<li>是否可以完全删除由 purge 来判断，若该行记录已完全不被事务引用，那么就进行真正的 delete 操作</li>
+</ul>
+<h4 id="group-commit"><a href="#group-commit" class="headerlink" title="group commit"></a>group commit</h4><p>若事务为非只读事务，则每次事务提交时需要进行一次fsync操作，以此保证重做日志都已经写入磁盘，为了提高磁盘fsync的效率，当前数据库提供了 group commit 的功能，即一次fsync可以刷新确保多个事务日志被写入文件。</p>
+<p>对于InnoDB来说，提交事务的两个阶段：</p>
+<ul>
+<li>修改内存中事务对应的信息，并且将日志写入重做日志缓冲</li>
+<li>调用fsync将确保日志都从重做日志缓冲写入磁盘 </li>
 </ul>
 <h4 id="事务控制语句"><a href="#事务控制语句" class="headerlink" title="事务控制语句"></a>事务控制语句</h4><ul>
 <li>start transaction、begin：开始显示事务</li>
