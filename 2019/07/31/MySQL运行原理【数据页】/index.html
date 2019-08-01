@@ -1,12 +1,11 @@
-<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.8.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="LeiJian"><title>MySQL运行原理【页】 · LeiJian</title><meta name="description" content="TODO 未完成
-文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 两本书得到的总结
+<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.8.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="LeiJian"><title>MySQL运行原理【页】 · LeiJian</title><meta name="description" content="文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 两本书得到的总结
 
 
     文章参考 淘宝数据库内核组月报
     文章中的图均截自《MySQL技术内幕：InnoDB存储引擎（第二版）》
 
 
-概述之前在介"><meta name="keywords"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="/images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/blog_basic.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"></head><body><div class="sidebar animated fadeInDown"><div class="logo-title"><div class="title"><img src="/images/logo@2x.png" style="width:127px;"><h3 title><a href="/">LeiJian<p>PHP Engineer</p></a></h3></div></div><ul class="social-links"><li><a href="http://github.com/sayhe110"><i class="fa fa-github"></i></a></li></ul><div class="footer"><a target="_blank" href="/"><span>Theme by </span></a><a href="https://www.caicai.me"> CaiCai </a><span>&</span><a href="https://github.com/Ben02/hexo-theme-Anatole"> Ben</a><div class="by_farbox"><a href="https://hexo.io/zh-cn/" target="_blank">Proudly published with Hexo&#65281;</a></div></div></div><div class="main"><div class="page-top animated fadeInDown"><div class="nav"><li><a href="/">首页</a></li><li><a href="/about">关于我</a></li><li><a href="/archives">归档</a></li><li><a href="/links">链接</a></li><li><a href="/self-talking">碎碎念</a></li></div><div class="information"><div class="back_btn"><li><a class="fa fa-chevron-left" onclick="window.history.go(-1)"> </a></li></div><div class="avatar"><img src="/images/favicon.png"></div></div></div><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post animated fadeInDown"><div class="post-title"><h3><a>MySQL运行原理【页】</a></h3></div><div class="post-content"><h2 id="TODO-未完成"><a href="#TODO-未完成" class="headerlink" title="TODO 未完成"></a>TODO 未完成</h2><blockquote>
+概述之前在介绍表的那篇文章里，"><meta name="keywords"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="/images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/blog_basic.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"></head><body><div class="sidebar animated fadeInDown"><div class="logo-title"><div class="title"><img src="/images/logo@2x.png" style="width:127px;"><h3 title><a href="/">LeiJian<p>PHP Engineer</p></a></h3></div></div><ul class="social-links"><li><a href="http://github.com/sayhe110"><i class="fa fa-github"></i></a></li></ul><div class="footer"><a target="_blank" href="/"><span>Theme by </span></a><a href="https://www.caicai.me"> CaiCai </a><span>&</span><a href="https://github.com/Ben02/hexo-theme-Anatole"> Ben</a><div class="by_farbox"><a href="https://hexo.io/zh-cn/" target="_blank">Proudly published with Hexo&#65281;</a></div></div></div><div class="main"><div class="page-top animated fadeInDown"><div class="nav"><li><a href="/">首页</a></li><li><a href="/about">关于我</a></li><li><a href="/archives">归档</a></li><li><a href="/links">链接</a></li><li><a href="/self-talking">碎碎念</a></li></div><div class="information"><div class="back_btn"><li><a class="fa fa-chevron-left" onclick="window.history.go(-1)"> </a></li></div><div class="avatar"><img src="/images/favicon.png"></div></div></div><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post animated fadeInDown"><div class="post-title"><h3><a>MySQL运行原理【页】</a></h3></div><div class="post-content"><blockquote>
 <p>文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、<a href="https://juejin.im/book/5bffcbc9f265da614b11b731" target="_blank" rel="noopener">掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》</a> 两本书得到的总结</p>
 </blockquote>
 <div class="tip">
@@ -19,13 +18,33 @@
 <h3 id="页结构"><a href="#页结构" class="headerlink" title="页结构"></a>页结构</h3><p>数据页包括七个部分，数据页文件头，数据页头，最大最小记录，用户记录，空闲空间，数据目录，数据页尾部。数据页简单的分为两大部分，一部分存储数据记录，按照记录的大小通过记录的指针连接起来，另一部分存储数据页的目录。</p>
 <div align="center"><img src="//blog.sayhe110.cn/2019/07/31/MySQL运行原理【数据页】/page_struct.png" width="35%"></div>
 
-<h3 id="文件头-File-Header"><a href="#文件头-File-Header" class="headerlink" title="文件头(File Header)"></a>文件头(File Header)</h3><p>File Header 头部信息由以下部分组成</p>
+<h3 id="文件头-File-Header"><a href="#文件头-File-Header" class="headerlink" title="文件头(File Header)"></a>文件头(File Header)</h3><p>File Header 主要用于存储表空间相关信息，组成部分如下：</p>
 <div align="center"><img src="//blog.sayhe110.cn/2019/07/31/MySQL运行原理【数据页】/file_header.png" width="65%"></div>
 
-<h3 id="数据页头（Page-Header）"><a href="#数据页头（Page-Header）" class="headerlink" title="数据页头（Page Header）"></a>数据页头（Page Header）</h3><p>Page Header 由以下部分组成</p>
+<ul>
+<li>FIL_PAGE_SPACE_OR_CHKSUM：主要用于存储数据页的 checksum</li>
+<li>FIL_PAGE_OFFSET：这个对应数据页的 page number，每个表空间从 0 开始</li>
+<li>FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID：现版本用于存储 spaceid</li>
+</ul>
+<h3 id="数据页头（Page-Header）"><a href="#数据页头（Page-Header）" class="headerlink" title="数据页头（Page Header）"></a>数据页头（Page Header）</h3><p>Page Header 主要用于存储数据页的元信息，组成部分如下：</p>
 <div align="center"><img src="//blog.sayhe110.cn/2019/07/31/MySQL运行原理【数据页】/page_header.png" width="65%"></div>
 
+<ul>
+<li>PAGE_N_DIR_SLOTS：用于存放数据页条目的个数，一个新建的初始数据页就会有两条记录，分别指向最大最小记录，在非空的数据页中，第一条记录永远指向最小记录，最后一条永远指向最大记录</li>
+<li>PAGE_HEAP_TOP：指向数据页中空闲空间的起始地址，由于有 PAGE_FREE 的记录存在，小于 PAGE_HEAP_TOP 地址的也可以被重用</li>
+<li>PAGE_N_HEAP：目前数据页空间中的记录数量，正常来说记录着正常记录和删除记录，所以说这个数不会减小只会增加，一个新建的初始数据页的 PAGE_N_HEAP 的默认值为 2 ，即为最大最小记录</li>
+<li>PAGE_FREE：记录被删除会进入这个删除链表，如果有记录插入，可以先从这个空间进行分配，若这个空间不够用，则在 PAGE_HEAP_TOP 空间中分配</li>
+<li>PAGE_DIRECTION：最后一个记录插入的方向，从左插入从右插入，为了加速后续插入速度</li>
+<li>PAGE_N_RECS：该页中记录的数量，不包括最大值最小值两条记录数</li>
+</ul>
+<h3 id="最大最小记录（Infimum-and-superfimum-records）"><a href="#最大最小记录（Infimum-and-superfimum-records）" class="headerlink" title="最大最小记录（Infimum and superfimum records）"></a>最大最小记录（Infimum and superfimum records）</h3><p>每个数据页中有两个虚拟行记录用来限定记录的边界，infimum record 是数据页上最小的记录，所有用户的记录都大于它，superfimum record 是数据页上最大的记录，所有用户的记录都小于它，即他们两为数据页上的最大值最小值的边界。</p>
+<h3 id="用户记录（User-record）"><a href="#用户记录（User-record）" class="headerlink" title="用户记录（User record）"></a>用户记录（User record）</h3><p>用户所有插入的数据记录都被存放在此，每个数据记录都有指向下一个记录的指针，但是没有指向上一个记录的指针。记录按照主键顺序排序，即用户可以从最小数据记录开始遍历，直到最大数据记录，其中包括了所有正常数据记录和被 delete-mark 的记录，但是不会访问到被标记删除的记录。</p>
+<h3 id="空闲空间（Free-space）"><a href="#空闲空间（Free-space）" class="headerlink" title="空闲空间（Free space）"></a>空闲空间（Free space）</h3><p>在一条数据记录被删除后，该空间会被加入到空闲链表中。从 PAGE_HEAP_TOP 开始到最后一个数据目录，这之间就是空闲空间，都被重置为 0，当用户插入记录的时候会首先从被删除的记录空间中查找，若没有合适的位置，则从空闲空间中分配，插入记录后会递增 PAGE_HEAP_TOP、PAGE_N_RECS 两个值。</p>
+<h3 id="页目录（Page-directory）"><a href="#页目录（Page-directory）" class="headerlink" title="页目录（Page directory）"></a>页目录（Page directory）</h3><div class="tip">这里强烈推荐看小册的数据页结构中页目录这一块</div>
 
-
-
+<p>页目录中存放了记录的相对位置，这些记录指针有时也被称为槽（slots），并不是每个记录都有槽，InnoDB存储引擎中的槽是一个稀疏的目录，这就代表了一个槽拥有多个记录。由于在InnoDB存储引擎中页目录是稀疏目录，二叉查找的结果只是一个粗略的结果，因此InnoDB存储引擎必须通过 <code>recorder header</code> 中的 <code>next_record</code>  来继续查找相关记录。</p>
+<blockquote>
+<p>需要注意的是，B+树索引并不能找到具体的一条记录，能找到的只是该记录的页，数据库把页加载到内存，然后通过页目录进行二叉查找，因为二叉查找时间复杂度非常低，又在内存中进行查找，所以这部分的查找时间可以忽略不计。</p>
+</blockquote>
+<h3 id="文件结尾信息（File-trailer）"><a href="#文件结尾信息（File-trailer）" class="headerlink" title="文件结尾信息（File trailer）"></a>文件结尾信息（File trailer）</h3><p>这部分信息处于数据页的最后位置，只有 8 个字节，为了检测页是否完整的刷新至磁盘，其中只有一个 <code>FIL_PAGE_END_LSN</code> 部分，前 4 字节代表该页的 <code>checksum</code> 值，后 4 字节和 <code>file header</code> 中的 <code>FIL_PAGE_LSN</code> 值相同。</p>
 </div><div class="post-footer"><div class="meta"><div class="info"><i class="fa fa-sun-o"></i><span class="date">2019-07-31</span><i class="fa fa-tag"></i></div></div></div></div><div class="share"><div class="evernote"><a class="fa fa-bookmark" href="javascript:(function(){EN_CLIP_HOST='http://www.evernote.com';try{var%20x=document.createElement('SCRIPT');x.type='text/javascript';x.src=EN_CLIP_HOST+'/public/bookmarkClipper.js?'+(new%20Date().getTime()/100000);document.getElementsByTagName('head')[0].appendChild(x);}catch(e){location.href=EN_CLIP_HOST+'/clip.action?url='+encodeURIComponent(location.href)+'&amp;title='+encodeURIComponent(document.title);}})();" ref="nofollow" target="_blank"></a></div><div class="weibo"><a class="fa fa-weibo" href="javascript:void((function(s,d,e){try{}catch(e){}var f='http://service.weibo.com/share/share.php?',u=d.location.href,p=['url=',e(u),'&amp;title=',e(d.title),'&amp;appkey=2924220432'].join('');function a(){if(!window.open([f,p].join(''),'mb',['toolbar=0,status=0,resizable=1,width=620,height=450,left=',(s.width-620)/2,',top=',(s.height-450)/2].join('')))u.href=[f,p].join('');};if(/Firefox/.test(navigator.userAgent)){setTimeout(a,0)}else{a()}})(screen,document,encodeURIComponent));"></a></div><div class="twitter"><a class="fa fa-twitter" href="http://twitter.com/home?status=,http://blog.sayhe110.cn/2019/07/31/MySQL运行原理【数据页】/,LeiJian,MySQL运行原理【页】,;"></a></div></div><div class="pagination"><ul class="clearfix"><li class="next pagbuttons"><a class="btn" role="navigation" href="/2019/07/30/MySQL运行原理【事务】/" title="MySQL运行原理【事务】">下一篇</a></li></ul></div></div></div></div></div><script src="/js/jquery.js"></script><script src="/js/jquery-migrate-1.2.1.min.js"></script><script src="/js/jquery.appear.js"></script></body></html>
