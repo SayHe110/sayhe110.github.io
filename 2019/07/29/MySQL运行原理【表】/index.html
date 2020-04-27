@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.8.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="LeiJian"><title>MySQL运行原理【表】 · LeiJian</title><meta name="description" content="文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 两本书得到的总结
+<!DOCTYPE html><html lang="zh-CN"><head><meta name="generator" content="Hexo 3.9.0"><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="LeiJian"><title>MySQL运行原理【表】 · LeiJian</title><meta name="description" content="文章根据《MySQL技术内幕：InnoDB存储引擎（第二版）》、掘金小册《MySQL是怎样运行的：从根儿上理解MySQL》 两本书得到的总结
 
  文章图片均截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》
 
@@ -24,7 +24,7 @@
 <li>当表中有多个非空唯一索引时，innodb存储引擎将选择建表时第一个定义的非空唯一索引为主键</li>
 </ul>
 <h4 id="InnoDB存储逻辑结构"><a href="#InnoDB存储逻辑结构" class="headerlink" title="InnoDB存储逻辑结构"></a>InnoDB存储逻辑结构</h4><p>所有数据都逻辑地存放在一个空间内，这个空间就是我们所说的表空间，表空间可以看做成InnoDB存储引擎逻辑结构的最高层，结构图如下（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）</p>
-<div align="center"><img src="//blog.sayhe110.cn/2019/07/29/MySQL运行原理【表】/WechatIMG123.png" width="50%"></div>
+<div align="center"><img src="/.cn//WechatIMG123.png" width="50%"></div>
 
 <p>从结构图中，可以看到表空间由段、区、页、行四大部分组成</p>
 <ul>
@@ -36,12 +36,11 @@
 <li>页：InnoDB存储引擎磁盘管理最小单位【<font color="red">会单独写篇文章来详细介绍数据页</font>】，常见的页类型有：数据页、undo页、系统页、事务数据页、插入缓冲位图页、插入缓冲空闲页、未压缩的二进制大对象页、压缩的二进制大对象页</li>
 <li>行：InnoDB存储引擎是面向列的，也就是说数据是按行进行存放的</li>
 </ul>
-<h4 id="InnoDB行记录格式"><a href="#InnoDB行记录格式" class="headerlink" title="InnoDB行记录格式"></a>InnoDB行记录格式</h4><p>我们正常都是以行为单位向表中插入数据，这些数据在磁盘上存放的格式被称为 <code>行格式</code> 或者 <code>记录格式</code> ，行记录格式有多种如： <code>Compact</code>，<code>Redundant</code>，<code>Dynamic</code>，<code>Compressed</code>，MySQL5.1开始默认行格式为 <code>Compact</code>。
-可以通过以下命令来修改行记录格式</p>
+<h4 id="InnoDB行记录格式"><a href="#InnoDB行记录格式" class="headerlink" title="InnoDB行记录格式"></a>InnoDB行记录格式</h4><p>我们正常都是以行为单位向表中插入数据，这些数据在磁盘上存放的格式被称为 <code>行格式</code> 或者 <code>记录格式</code> ，行记录格式有多种如： <code>Compact</code>，<code>Redundant</code>，<code>Dynamic</code>，<code>Compressed</code>，MySQL5.1开始默认行格式为 <code>Compact</code>。<br>可以通过以下命令来修改行记录格式</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">CREATE TABLE 表名 (列的信息) ROW_FORMAT=行格式名称</span><br><span class="line">    </span><br><span class="line">ALTER TABLE 表名 ROW_FORMAT=行格式名称</span><br></pre></td></tr></table></figure>
 
 <p><code>Compact</code>行记录格式的结构图（表截图自《MySQL技术内幕：InnoDB存储引擎（第二版）》）如下：</p>
-<div align="center"><img src="//blog.sayhe110.cn/2019/07/29/MySQL运行原理【表】/WechatIMG125.png" width="50%"></div>
+<div align="center"><img src="/.cn//WechatIMG125.png" width="50%"></div>
 
 <ul>
 <li>变长字段长度列表：Compact行记录格式的首部是一个非NULL变长字段长度列表，逆序放置<ul>
@@ -52,7 +51,7 @@
 <li>NULL 标志位：指示该行数据中是否有NULL值，有则1表示</li>
 <li>记录头信息：固定占5个字节，也就是40个二进制位，不同位代表不同意思，如图（）：</li>
 </ul>
-<p><br> <div align="center"><img src="//blog.sayhe110.cn/2019/07/29/MySQL运行原理【表】/WechatIMG126.png" width="80%"></div></p>
+<p><br> <div align="center"><img src="/.cn//WechatIMG126.png" width="80%"></div></p>
 <ul>
 <li>Redundant行记录格式：MySQL5.1版本之前的行记录格式</li>
 <li>行溢出数据【下面会详细介绍】</li>
@@ -81,4 +80,4 @@
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">132 + 2×(27 + n) &lt; 16384</span><br></pre></td></tr></table></figure>
 
 <p>得到 n 为8099，也就是说这个列可以存放8099字节信息，若大于则为溢出，这只是一个列的情况下，若多列的时候，这个数值就不能作为参考，所以最终的结论是：<span color="red">你不用关注这个临界点是什么，只要知道如果我们一条记录的某个列中存储的数据占用的字节数非常多时，该列就可能成为溢出列</span>。</p>
-</div><div class="post-footer"><div class="meta"><div class="info"><i class="fa fa-sun-o"></i><span class="date">2019-07-29</span><i class="fa fa-tag"></i></div></div></div></div><div class="share"><div class="evernote"><a class="fa fa-bookmark" href="javascript:(function(){EN_CLIP_HOST='http://www.evernote.com';try{var%20x=document.createElement('SCRIPT');x.type='text/javascript';x.src=EN_CLIP_HOST+'/public/bookmarkClipper.js?'+(new%20Date().getTime()/100000);document.getElementsByTagName('head')[0].appendChild(x);}catch(e){location.href=EN_CLIP_HOST+'/clip.action?url='+encodeURIComponent(location.href)+'&amp;title='+encodeURIComponent(document.title);}})();" ref="nofollow" target="_blank"></a></div><div class="weibo"><a class="fa fa-weibo" href="javascript:void((function(s,d,e){try{}catch(e){}var f='http://service.weibo.com/share/share.php?',u=d.location.href,p=['url=',e(u),'&amp;title=',e(d.title),'&amp;appkey=2924220432'].join('');function a(){if(!window.open([f,p].join(''),'mb',['toolbar=0,status=0,resizable=1,width=620,height=450,left=',(s.width-620)/2,',top=',(s.height-450)/2].join('')))u.href=[f,p].join('');};if(/Firefox/.test(navigator.userAgent)){setTimeout(a,0)}else{a()}})(screen,document,encodeURIComponent));"></a></div><div class="twitter"><a class="fa fa-twitter" href="http://twitter.com/home?status=,http://blog.sayhe110.cn/2019/07/29/MySQL运行原理【表】/,LeiJian,MySQL运行原理【表】,;"></a></div></div><div class="pagination"><ul class="clearfix"><li class="pre pagbuttons"><a class="btn" role="navigation" href="/2019/07/30/MySQL运行原理【事务】/" title="MySQL运行原理【事务】">Post Anterior</a></li><li class="next pagbuttons"><a class="btn" role="navigation" href="/2019/06/21/众多编程语言应如何选择/" title="众多编程语言应如何选择">Próximo post</a></li></ul></div></div></div></div></div><script src="/js/jquery.js"></script><script src="/js/jquery-migrate-1.2.1.min.js"></script><script src="/js/jquery.appear.js"></script></body></html>
+</div><div class="post-footer"><div class="meta"><div class="info"><i class="fa fa-sun-o"></i><span class="date">2019-07-29</span><i class="fa fa-tag"></i></div></div></div></div><div class="share"><div class="evernote"><a class="fa fa-bookmark" href="javascript:(function(){EN_CLIP_HOST='http://www.evernote.com';try{var%20x=document.createElement('SCRIPT');x.type='text/javascript';x.src=EN_CLIP_HOST+'/public/bookmarkClipper.js?'+(new%20Date().getTime()/100000);document.getElementsByTagName('head')[0].appendChild(x);}catch(e){location.href=EN_CLIP_HOST+'/clip.action?url='+encodeURIComponent(location.href)+'&amp;title='+encodeURIComponent(document.title);}})();" ref="nofollow" target="_blank"></a></div><div class="weibo"><a class="fa fa-weibo" href="javascript:void((function(s,d,e){try{}catch(e){}var f='http://service.weibo.com/share/share.php?',u=d.location.href,p=['url=',e(u),'&amp;title=',e(d.title),'&amp;appkey=2924220432'].join('');function a(){if(!window.open([f,p].join(''),'mb',['toolbar=0,status=0,resizable=1,width=620,height=450,left=',(s.width-620)/2,',top=',(s.height-450)/2].join('')))u.href=[f,p].join('');};if(/Firefox/.test(navigator.userAgent)){setTimeout(a,0)}else{a()}})(screen,document,encodeURIComponent));"></a></div><div class="twitter"><a class="fa fa-twitter" href="http://twitter.com/home?status=,http://blog.sayhe110.cn/2019/07/29/MySQL运行原理【表】/,LeiJian,MySQL运行原理【表】,;"></a></div></div><div class="pagination"><ul class="clearfix"><li class="pre pagbuttons"><a class="btn" role="navigation" href="/2019/07/30/MySQL运行原理【事务】/" title="MySQL运行原理【事务】">上一篇</a></li><li class="next pagbuttons"><a class="btn" role="navigation" href="/2019/06/21/众多编程语言应如何选择/" title="众多编程语言应如何选择">下一篇</a></li></ul></div></div></div></div></div><script src="/js/jquery.js"></script><script src="/js/jquery-migrate-1.2.1.min.js"></script><script src="/js/jquery.appear.js"></script></body></html>
